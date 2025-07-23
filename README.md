@@ -13,3 +13,16 @@ COLLECTION_NAME = "realtime_network_logs"
 1. python -m venv mongo-mcp-chat
 1. mongo-mcp-chat\Scripts\activate.bat
 1. pip install -r requirements.txt
+
+#start sending ts data 
+
+
+```
+python send_data_to_ts.py
+```
+
+
+#start chat bot with memory and MCP tools 
+```
+python mcp_client_with_chat_memory.py
+```

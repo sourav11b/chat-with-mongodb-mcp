@@ -24,5 +24,5 @@ python send_data_to_ts.py
 
 #start chat bot with memory and MCP tools 
 ```
-python mcp_client_with_chat_memory.py
+python mcp_client.py
 ```

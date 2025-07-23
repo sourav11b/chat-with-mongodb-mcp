@@ -20,6 +20,9 @@ from langchain_mongodb import MongoDBChatMessageHistory
 load_dotenv() # Load environment variables from .env file first
 openai_client = OpenAI()
 
+MONGO_URI = os.getenv("MONGO_URI")
+ATLAS_VECTOR_SEARCH_INDEX_NAME = os.getenv("ATLAS_VECTOR_SEARCH_INDEX_NAME") # not used in current version
+
 # Generate a new, unique session_id using UUID
 session_id = str(uuid.uuid4()) 
 print(f"Generated new chat session_id: {session_id}")
@@ -39,7 +42,7 @@ async def chat_loop():
             args=[ "-y",
             "mongodb-mcp-server",
             "--connectionString",
-            MONGO_CONNECTION_STRING],
+            MONGO_URI],
             env=None
         )
 
@@ -51,7 +54,7 @@ async def chat_loop():
 
         # Initialize MongoDBChatMessageHistory ONCE here, before the while loop!
         chat_history_manager = MongoDBChatMessageHistory(
-            connection_string=MONGO_CONNECTION_STRING,
+            connection_string=MONGO_URI,
             session_id=session_id, # Use the newly generated session_id
             database_name="historical_db",
             collection_name="chat_messages"

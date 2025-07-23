@@ -26,3 +26,8 @@ python send_data_to_ts.py
 ```
 python mcp_client.py
 ```
+
+# output
+
+
+![output](sample_output.png "This is sample output")

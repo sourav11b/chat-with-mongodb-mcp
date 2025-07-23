@@ -10,6 +10,6 @@ DB_NAME = "network_monitoring"
 COLLECTION_NAME = "realtime_network_logs"
 ```
 
-1.python -m venv mongo-mcp-chat
-1.mongo-mcp-chat\Scripts\activate.bat
-1.pip install -r requirements.txt
+1. python -m venv mongo-mcp-chat
+1. mongo-mcp-chat\Scripts\activate.bat
+1. pip install -r requirements.txt

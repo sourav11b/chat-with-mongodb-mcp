@@ -1,13 +1,7 @@
 langchain
-pypdf
-pymongo
 openai
 python-dotenv
-tiktoken
 langchain_community
 langchain-mongodb
-langchain_voyageai
-confluent_kafka
 mcp
-voyageai
 langchain_openai

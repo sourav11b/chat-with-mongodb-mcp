@@ -30,6 +30,17 @@ python send_data_to_ts.py
 ```
 python mcp_client_langchain_only.py
 ```
+
+control the number of errors per batch, batch  size, number of towers etc using these params in the file , ERRORS_PER_BATCH should be less than DOCUMENTS_PER_SEND
+
+```
+NUM_TOWERS = 10  # Number of towers sending data, each will get its own thread
+DOCUMENTS_PER_SEND = 50  # Number of documents each tower sends per interval
+SEND_INTERVAL_SECONDS = 5
+ERRORS_PER_BATCH = 40  # Number of error documents to inject per batch (must be < DOCUMENTS_PER_SEND)
+```
+
+
 # sample prompt
 
 ```

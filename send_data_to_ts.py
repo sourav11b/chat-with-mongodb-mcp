@@ -12,14 +12,14 @@ from pymongo.errors import CollectionInvalid, OperationFailure
 NUM_TOWERS = 10  # Number of towers sending data, each will get its own thread
 DOCUMENTS_PER_SEND = 50  # Number of documents each tower sends per interval
 SEND_INTERVAL_SECONDS = 5
-ERRORS_PER_BATCH = 2  # Number of error documents to inject per batch (must be < DOCUMENTS_PER_SEND)
+ERRORS_PER_BATCH = 40  # Number of error documents to inject per batch (must be < DOCUMENTS_PER_SEND)
 
 import os
 from dotenv import load_dotenv
 load_dotenv() # Load environment variables from .env file first
-MONGO_URI = os.getenv("MONGO_URI")
-DB_NAME = os.getenv("DB_NAME")
-COLLECTION_NAME = os.getenv("COLLECTION_NAME")
+MONGO_URI = os.getenv("ATLAS_URI")
+DB_NAME = os.getenv("ATLAS_DB_NAME")
+COLLECTION_NAME = os.getenv("ATLAS_COLLECTION_NAME")
 # Ensure ERRORS_PER_BATCH is less than DOCUMENTS_PER_SEND
 if ERRORS_PER_BATCH >= DOCUMENTS_PER_SEND:
     raise ValueError("ERRORS_PER_BATCH must be less than DOCUMENTS_PER_SEND")

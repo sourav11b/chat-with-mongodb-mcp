@@ -1,38 +1,127 @@
 import asyncio
 import os
 import json
-import sys # Import sys for error handling info
-import uuid # For generating unique session IDs
-
-# Correct import for mcp.client.stdio.stdio_client
-from mcp import ClientSession, StdioServerParameters 
-from mcp.client.stdio import stdio_client 
-
-# Correct import for LangChain's message types, including ToolCall
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, ToolCall 
-from dotenv import load_dotenv
+import sys
+import uuid
 from contextlib import AsyncExitStack
-# REMOVED: from openai import OpenAI
-from langchain_openai import OpenAIEmbeddings
-from langchain_openai.chat_models import ChatOpenAI # NEW: Import ChatOpenAI
+from datetime import datetime, timezone
 
+from pymongo import MongoClient
+from langchain_voyageai import VoyageAIEmbeddings
+
+
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, ToolCall
+from langchain_core.tools import tool
+from langchain_openai.chat_models import ChatOpenAI
 from langchain_mongodb import MongoDBChatMessageHistory
+from dotenv import load_dotenv
 
-load_dotenv() # Load environment variables from .env file first
-# REMOVED: openai_client = OpenAI()
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
-MONGO_URI = os.getenv("MONGO_URI")
-ATLAS_VECTOR_SEARCH_INDEX_NAME = os.getenv("ATLAS_VECTOR_SEARCH_INDEX_NAME") # not used in current version
 
-# Generate a new, unique session_id using UUID
-session_id = str(uuid.uuid4()) 
+# Load environment variables from .env file
+load_dotenv()
+
+# --- Configuration from Environment Variables ---
+ATLAS_URI = os.getenv("ATLAS_URI")
+ATLAS_VECTOR_SEARCH_INDEX_NAME = os.getenv("ATLAS_VECTOR_SEARCH_INDEX_NAME")
+ATLAS_DB_NAME = os.getenv("ATLAS_DB_NAME")
+ATLAS_COLLECTION_NAME_MANUALS = os.getenv("ATLAS_COLLECTION_NAME_MANUALS")
+
+# --- MongoDB Client Initialization ---
+mongo_client = MongoClient(ATLAS_URI)
+collection = mongo_client[ATLAS_DB_NAME][ATLAS_COLLECTION_NAME_MANUALS]
+
+# --- Session Management ---
+# Generate a new, unique session_id using UUID for chat history
+session_id = str(uuid.uuid4())
 print(f"Generated new chat session_id: {session_id}")
+
+# --- Voyage AI Client Initialization ---
+# voyage_model = "voyage-3-lite"
+voyage_client = VoyageAIEmbeddings( model="voyage-3-lite")
+
+# Define a function to generate embeddings
+def get_embedding(data, input_type = "document"):
+  embeddings = voyage_client.embed_query(data )
+  
+  print(f"getting embeddings : ")
+  return embeddings
+  
+@tool
+def get_utc_time() -> str:
+    """Returns the current UTC date and time in ISO format."""
+        
+    return datetime.now(timezone.utc).isoformat()
+
+
+@tool
+def vector_search_tool(user_input: str) -> str:
+    """
+    Search MongoDB collection using vector search or semantic search for given user_input string. 
+    The results contains steps needed to fix the issue described by user_input
+    
+    Args:
+        user_input (str): The name alert conditions
+    Returns:
+        str: string representation of a list of documents from mongodb collection which contains possible   solutions for the input alert condition
+    """
+
+
+    query_embedding = get_embedding(user_input)
+
+    try :
+
+        pipeline = [
+
+          {
+
+             "$vectorSearch": {
+
+              "index": ATLAS_VECTOR_SEARCH_INDEX_NAME,
+
+              "queryVector": query_embedding,
+
+              "path": "embedding",
+
+              "exact": True,
+
+              "limit": 5
+
+             }
+
+          },
+          { "$project" : {
+          
+                            "_id" : 0
+                        }
+          
+          }
+
+        ]
+        results = collection.aggregate(pipeline)
+    except Exception as e:
+        print(f"Caught a general exception: {e}")
+        return json.dumps({"error": str(e)}) # Return an error message as JSON
+
+    array_of_results = []
+    for doc in results:
+        array_of_results.append(doc)
+
+    # Convert the list of dictionaries (MongoDB documents) to a JSON formatted string
+    return json.dumps(array_of_results, indent=2) # Using indent for pretty printing the JSON
 
         
 async def chat_loop():
     """Run an interactive chat loop"""
     print("\nMCP Client Started!")
-    print("Type your queries or 'quit' to exit.")
+    print("""
+    Type your queries or 'quit' to exit. To do a vector search against manuals please use keywords vector or sematic search
+    
+    Example prompt :  Please access the realtime_network_logs table in the network monitoring database and, after identifying the correct UTC timestamp field by examining its schema, retrieve event descriptions inserted within the last 20 seconds; then, summarize these descriptions, pinpointing any alert conditions where the severity is 4 or greater, and finally, leverage vector search tools to find and present possible solutions for all identified alerts.
+    
+    """)
     
     # Initialize LangChain's ChatOpenAI
     # You can set max_tokens here if you want a global limit for the LLM
@@ -44,7 +133,7 @@ async def chat_loop():
             args=[ "-y",
             "mongodb-mcp-server",
             "--connectionString",
-            MONGO_URI],
+            ATLAS_URI],
             env=None
         )
 
@@ -56,7 +145,7 @@ async def chat_loop():
 
         # Initialize MongoDBChatMessageHistory ONCE here, before the while loop!
         chat_history_manager = MongoDBChatMessageHistory(
-            connection_string=MONGO_URI,
+            connection_string=ATLAS_URI,
             session_id=session_id, # Use the newly generated session_id
             database_name="historical_db",
             collection_name="chat_messages"
@@ -155,6 +244,33 @@ async def chat_loop():
                     
                     # OpenAI API call using LangChain's ChatOpenAI.invoke
                     # Pass LangChain messages directly. ChatOpenAI handles the conversion.
+                    
+                    # llm_with_tools = llm.bind_tools([vector_search_tool,get_utc_time])
+                    # langchain_tools.append(vector_search_tool)
+                    # langchain_tools.append(get_utc_time)
+                    
+                    langchain_tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": vector_search_tool.name,
+                            "description": vector_search_tool.description,
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "user_input": {"type": "string", "description": "The name alert conditions"}
+                                },
+                                "required": ["user_input"]
+                            }
+                        }
+                    })
+                    langchain_tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": get_utc_time.name,
+                            "description": get_utc_time.description,
+                            "parameters": {}
+                        }
+                    })
                     llm_response = await llm.ainvoke(
                         input=messages, # Pass the list of LangChain messages directly
                         tools=langchain_tools,
@@ -176,23 +292,36 @@ async def chat_loop():
 
                     # Handle tool calls if present
                     if response_message.tool_calls:
+                        
                         for tool_call in response_message.tool_calls:
+                            # print(tool_call)
                             tool_name = tool_call["name"] # Access name directly from ToolCall object
                             tool_args = tool_call["args"] # Access args (already a dict) directly from ToolCall object
-
-                            try:
-                                # Execute tool call
-                                result = await session.call_tool(tool_name, tool_args) # tool_args is already a dict
-                                final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
-                                tool_output_content = str(result.content)
-                                # print(f"\nTool {tool_name} output: {tool_output_content}")
-                            except Exception as tool_e:
-                                tool_output_content = f"Error executing tool {tool_name}: {str(tool_e)}"
-                                print(f"\n{tool_output_content}")
+                            if tool_name not in ["vector_search_tool","get_utc_time"]: 
+                                try:
+                                    # Execute tool call
+                                    result = await session.call_tool(tool_name, tool_args) # tool_args is already a dict
+                                    final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
+                                    tool_output_content = str(result.content)
+                                    # print(f"\nTool {tool_name} output: {tool_output_content}")
+                                except Exception as tool_e:
+                                    tool_output_content = f"Error executing tool {tool_name}: {str(tool_e)}"
+                                    print(f"\n{tool_output_content}")
+                            else :
                                 
+                                try: 
+                                    if tool_name == "vector_search_tool" :
+                                        result = vector_search_tool.invoke(tool_args)                                   
+                                    else :                                        
+                                        result = get_utc_time.invoke(tool_args)
+                                    final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
+                                    tool_output_content = str(result) 
+                                except Exception as tool_e:
+                                    tool_output_content = f"Error executing tool {tool_name}: {str(tool_e)}"
+                                    print(f"\n{tool_output_content}")
                             # Add tool message to history
                             
-                            print("-----"+str(tool_call))
+                            # print("-----"+str(tool_call))
                             ai_tool_calls = []
                             ai_tool_calls.append(
                                 ToolCall(id=tool_call["id"], name=tool_call["name"], args=tool_call["args"])

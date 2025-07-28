@@ -1,7 +1,8 @@
-langchain
-openai
+pymongo
 python-dotenv
-langchain_community
+langchain-core
+langchain-openai
 langchain-mongodb
-mcp
-langchain_openai
+langchain_voyageai
+langchain_community
+pypdf

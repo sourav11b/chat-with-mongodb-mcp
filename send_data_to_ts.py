@@ -124,7 +124,7 @@ def get_mongo_collection():
                 db.create_collection(
                     COLLECTION_NAME,
                     timeseries={
-                        "timeField": "fieldtime",
+                        "timeField": "event_timestamp",
                         "granularity": "seconds"
                     },
                     expireAfterSeconds=60 * 60 * 24 * 30  # Data expires after 30 days (optional)
@@ -173,14 +173,12 @@ def generate_tower_data(tower_id, is_error=False):
         event_description = random.choice(possible_descriptions)
 
     document = {
-        "SystemID": f"SYS_{tower_id}",
-        "sourceid": f"tower_{tower_id}",
-        "eventid": str(random.randint(10000, 99999)),
-        "eventdescription": event_description,
+        "source_tower_id": f"tower_{tower_id}",
+        "event_id": str(random.randint(10000, 99999)),
+        "event_description": event_description,
         "category": category,
         "severity": severity,
-        "fieldtime": timestamp_dt,  # UTC datetime object
-        "fieldseconds": int(timestamp_dt.timestamp())
+        "event_timestamp": timestamp_dt
     }
     return document
 
@@ -199,24 +197,26 @@ def produce_tower_data(tower_id, mongo_collection, shutdown_event, errors_per_ba
         
         if errors_per_batch > 0:
             print(f"--- Tower {tower_id}: Injecting {len(error_indices)} error(s) into batch ---")
-
+        
         error_timestamps = []
         for i in range(DOCUMENTS_PER_SEND):
             is_error_doc = (i in error_indices)
             doc = generate_tower_data(tower_id, is_error=is_error_doc)
             documents_to_send.append(doc)
+            '''
             if is_error_doc:
                 error_timestamps.append(doc['fieldtime'])
-
+                '''
+        
         try:
             if documents_to_send:
                 mongo_collection.insert_many(documents_to_send)
                 
                 error_doc_info = ""
-                if error_timestamps:
-                    error_doc_info = f", Injected error timestamps: {', '.join(str(ts) for ts in error_timestamps)}"
+                # if error_timestamps:
+                #    error_doc_info = f", Injected error timestamps: {', '.join(str(ts) for ts in error_timestamps)}"
                                 
-                print(f"Tower {tower_id}: Inserted {len(documents_to_send)} documents. Last timestamp: {documents_to_send[-1]['fieldtime']}{error_doc_info}")
+                print(f"Tower {tower_id}: Inserted {len(documents_to_send)} documents. {error_doc_info}")
         except OperationFailure as e:
             print(f"Tower {tower_id}: MongoDB insert failed: {e}")
         except Exception as e:

@@ -2,13 +2,27 @@
 create a .env file and populate the keys
 
 ```
-OPENAI_API_KEY = ""
 VOYAGE_API_KEY =""
 ATLAS_VECTOR_SEARCH_INDEX_NAME = "vector_index_embedding"
 ATLAS_URI = ""  
 ATLAS_DB_NAME = "network_monitoring"
 ATLAS_COLLECTION_NAME = "realtime_network_logs"
 ATLAS_COLLECTION_NAME_MANUALS = 'manuals_collection'
+```
+
+if using OpenAI LLMs add this
+
+```
+OPENAI_API_KEY = ""
+```
+
+if using Azure OpenAI LLMs add these 
+
+```
+AZURE_OPENAI_API_KEY = ""
+AZURE_OPENAI_ENDPOINT =  ""
+AZURE_OPENAI_API_VERSION = ""
+AZURE_OPENAI_DEPLOYMENT_NAME = ""
 ```
 
 1. python -m venv mongo-mcp-chat
@@ -27,9 +41,19 @@ python send_data_to_ts.py
 ```
 
 # start chat bot with memory and MCP tools 
+
+For OpenAI LLMs
+
 ```
 python mcp_client_langchain_only.py
 ```
+
+For Azure OpenAI LLMs
+
+```
+python azure_mcp_client_langchain_only.py
+```
+
 
 control the number of errors per batch, batch  size, number of towers etc using these params in the file , ERRORS_PER_BATCH should be less than DOCUMENTS_PER_SEND
 
@@ -39,7 +63,46 @@ DOCUMENTS_PER_SEND = 50  # Number of documents each tower sends per interval
 SEND_INTERVAL_SECONDS = 5
 ERRORS_PER_BATCH = 40  # Number of error documents to inject per batch (must be < DOCUMENTS_PER_SEND)
 ```
+# Tools 
 
+```
+Query: what are the tool avaibale to me?
+
+You have access to a variety of tools that allow you to interact with MongoDB databases and collections. Here are the main categories of tools available to you:
+
+1. Database Management:
+   - List all databases
+   - Get database statistics
+   - Drop (delete) a database
+
+2. Collection Management:
+   - List all collections in a database
+   - Create a new collection
+   - Drop (delete) a collection
+   - Rename a collection
+   - Get collection statistics (size, storage, etc.)
+   - Get collection schema
+   - Manage indexes (list, create)
+
+3. Document Operations:
+   - Find documents (with filters, projections, sorting, and limits)
+   - Insert multiple documents
+   - Update multiple documents
+   - Delete multiple documents
+   - Count documents (with optional filters)
+   - Aggregate (run aggregation pipelines)
+
+4. Logs and Monitoring:
+   - Get recent MongoDB logs (global or startup warnings)
+
+5. Search Tools:
+   - Text search for solutions to alert conditions
+   - Vector search for solutions to alert conditions
+   - Fusion search for solutions to alert conditions
+
+6. Utility:
+   - Get the current UTC time
+```
 
 # sample prompt
 

@@ -46,7 +46,7 @@ voyage_client = VoyageAIEmbeddings( model="voyage-3-lite")
 def get_embedding(data, input_type = "document"):
   embeddings = voyage_client.embed_query(data )
   
-  print(f"getting embeddings : ")
+  # print(f"getting embeddings : ")
   return embeddings
   
 @tool
@@ -107,11 +107,127 @@ def vector_search_tool(user_input: str) -> str:
 
     array_of_results = []
     for doc in results:
+        print("adding doc")
         array_of_results.append(doc)
 
     # Convert the list of dictionaries (MongoDB documents) to a JSON formatted string
     return json.dumps(array_of_results, indent=2) # Using indent for pretty printing the JSON
 
+
+@tool
+def text_search_tool(user_input: str) -> str:
+    """
+    Search MongoDB collection using text search  for given user_input string. 
+    The results contains steps needed to fix the issue described by user_input
+    
+    Args:
+        user_input (str): The name alert conditions
+    Returns:
+        str: string representation of a list of documents from mongodb collection which contains possible   solutions for the input alert condition
+    """
+
+    try :
+
+        results = collection.aggregate([
+          {
+            '$search': 
+             {
+                'index': "default_search",
+                'text': {
+                  'query': user_input,
+                  'path': {
+                        'wildcard': "*"
+                    }
+                }
+             }
+          }, 
+          {
+            '$limit': 5
+          }, 
+          {
+            '$project': {
+               '_id': 0
+            }
+          }
+        ])
+    except Exception as e:
+        print(f"Caught a general exception: {e}")
+        return json.dumps({"error": str(e)}) # Return an error message as JSON
+
+    array_of_results = []
+    for doc in results:
+        array_of_results.append(doc)
+
+    # Convert the list of dictionaries (MongoDB documents) to a JSON formatted string
+    return json.dumps(array_of_results, indent=2) # Using indent for pretty printing the JSON
+    
+@tool
+def fusion_search_tool(user_input: str) -> str:
+    """
+    Search MongoDB collection using fusion search  for given user_input string. 
+    The results contains steps needed to fix the issue described by user_input
+    
+    Args:
+        user_input (str): The name alert conditions
+    Returns:
+        str: string representation of a list of documents from mongodb collection which contains possible   solutions for the input alert condition
+    """
+    query_embedding = get_embedding(user_input)
+    try :
+
+        results = collection.aggregate(
+            [
+               {
+                  "$rankFusion": {
+                     'input': {
+                        'pipelines': {
+                           "searchOne": [
+                              {
+                                 "$vectorSearch": {
+
+                                  "index": ATLAS_VECTOR_SEARCH_INDEX_NAME,
+
+                                  "queryVector": query_embedding,
+
+                                  "path": "embedding",
+
+                                  "exact": True,
+
+                                  "limit": 5
+
+                                 }
+                              }
+                           ],
+                           "searchTwo": [
+                              {
+                                 '$search': {
+                                        'text': {
+                                          'query': user_input,
+                                          'path': {
+                                                'wildcard': "*"
+                                            }
+                                        }
+                                     }
+                              },
+                              { "$limit": 5 }
+                           ],
+                        }
+                     }
+                  }
+               },
+               { '$limit': 5 }
+            ] 
+        )
+    except Exception as e:
+        print(f"Caught a general exception: {e}")
+        return json.dumps({"error": str(e)}) # Return an error message as JSON
+
+    array_of_results = []
+    for doc in results:
+        array_of_results.append(doc)
+
+    # Convert the list of dictionaries (MongoDB documents) to a JSON formatted string
+    return json.dumps(array_of_results, indent=2) # Using indent for pretty printing the JSON
         
 async def chat_loop():
     """Run an interactive chat loop"""
@@ -263,6 +379,36 @@ async def chat_loop():
                             }
                         }
                     })
+                    
+                    langchain_tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": text_search_tool.name,
+                            "description": text_search_tool.description,
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "user_input": {"type": "string", "description": "The name alert conditions"}
+                                },
+                                "required": ["user_input"]
+                            }
+                        }
+                    })
+                    
+                    langchain_tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": fusion_search_tool.name,
+                            "description": fusion_search_tool.description,
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "user_input": {"type": "string", "description": "The name alert conditions"}
+                                },
+                                "required": ["user_input"]
+                            }
+                        }
+                    })
                     langchain_tools.append({
                         "type": "function",
                         "function": {
@@ -297,7 +443,7 @@ async def chat_loop():
                             # print(tool_call)
                             tool_name = tool_call["name"] # Access name directly from ToolCall object
                             tool_args = tool_call["args"] # Access args (already a dict) directly from ToolCall object
-                            if tool_name not in ["vector_search_tool","get_utc_time"]: 
+                            if tool_name not in ["vector_search_tool","get_utc_time","text_search_tool","fusion_search_tool"]: 
                                 try:
                                     # Execute tool call
                                     result = await session.call_tool(tool_name, tool_args) # tool_args is already a dict
@@ -311,7 +457,11 @@ async def chat_loop():
                                 
                                 try: 
                                     if tool_name == "vector_search_tool" :
-                                        result = vector_search_tool.invoke(tool_args)                                   
+                                        result = vector_search_tool.invoke(tool_args)  
+                                    elif tool_name == "text_search_tool" :
+                                        result = text_search_tool.invoke(tool_args)  
+                                    elif tool_name == "fusion_search_tool" :
+                                        result = fusion_search_tool.invoke(tool_args)  
                                     else :                                        
                                         result = get_utc_time.invoke(tool_args)
                                     final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
@@ -378,5 +528,5 @@ async def main():
     await chat_loop()
 
 if __name__ == "__main__":
-    sys.set_int_handler = lambda x: None 
+    # sys.set_int_handler = lambda x: None 
     asyncio.run(main())

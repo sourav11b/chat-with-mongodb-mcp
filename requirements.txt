@@ -3,6 +3,10 @@ python-dotenv
 langchain-core
 langchain-openai
 langchain-mongodb
-langchain_voyageai
+voyageai
 langchain_community
 pypdf
+langchain_voyageai
+unstructured 
+python-docx 
+tiktoken

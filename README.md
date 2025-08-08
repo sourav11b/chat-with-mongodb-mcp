@@ -34,7 +34,7 @@ AZURE_OPENAI_DEPLOYMENT_NAME = ""
 ```
 
 1. python -m venv mongo-mcp-chat
-1. mongo-mcp-chat\Scripts\activate.bat ( this for Windows, change for other OS)
+1. mongo-mcp-chat\Scripts\activate.bat ( this for Windows, change for other OS source mongo-mcp-chat/bin/activate)
 1. pip install -r requirements.txt
 
 # chunk, create embeddings and upload pdf manual

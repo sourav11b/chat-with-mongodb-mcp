@@ -20,6 +20,7 @@ ATLAS_URI = os.getenv("ATLAS_URI")
 ATLAS_VECTOR_SEARCH_INDEX_NAME = os.getenv("ATLAS_VECTOR_SEARCH_INDEX_NAME")
 ATLAS_DB_NAME = os.getenv("ATLAS_DB_NAME")
 ATLAS_COLLECTION_NAME_MANUALS = os.getenv("ATLAS_COLLECTION_NAME_MANUALS")
+ATLAS_TEXT_SEARCH_INDEX_NAME = "default_search"
 
 client = MongoClient(ATLAS_URI)
 
@@ -68,8 +69,62 @@ def create_vector_index_definition():
       if len(indices) and predicate(indices[0]):
         break
       time.sleep(5)
-    print(result + " is ready for querying.")    
-    
+    print(result + " is ready for querying.")  
+    '''
+    SEARCH_INDEX_DEFINITION = {
+            "mappings": {
+                "dynamic": True,  # Dynamically index all fields
+                "fields": {}      # No specific field mappings, relies on dynamic: True
+            }
+        } 
+
+    print(f"Attempting to create search index '{index_name}' on collection '{ATLAS_COLLECTION_NAME_MANUALS}' in database '{ATLAS_DB_NAME}'...")
+
+    # Create the search index
+    collection.create_search_index(
+        name=ATLAS_TEXT_SEARCH_INDEX_NAME,
+        definition=SEARCH_INDEX_DEFINITION
+    )
+
+    print(f"Search index '{index_name}' creation initiated successfully!")
+    print(f"Waiting for search index '{index_name}' to become ready (max {timeout_minutes} minutes)...")
+
+    start_time = time.time()
+    ready = False
+    while time.time() - start_time < timeout_minutes * 60:
+        try:
+    # Use the listSearchIndexes command to get index status
+    # The command is run against the database, not the collection directly
+    indexes_info = db.command("listSearchIndexes", {"name": index_name})
+
+    # The result is an iterable cursor, so we need to iterate to find our index
+    found_index = None
+    for index in indexes_info["cursor"]["firstBatch"]:
+        if index.get("name") == index_name:
+    found_index = index
+    break
+
+    if found_index:
+        status = found_index.get("status")
+        print(f"Current status of index '{index_name}': {status}")
+        if status == "READY":
+    ready = True
+    break
+    else:
+        print(f"Index '{index_name}' not found yet in listSearchIndexes output. Retrying...")
+
+        except PyMongoError as e:
+    print(f"Error checking index status: {e}. Retrying...")
+        except Exception as e:
+    print(f"An unexpected error occurred while checking index status: {e}. Retrying...")
+
+        time.sleep(check_interval_seconds)
+
+    if ready:
+        print(f"Search index '{index_name}' is READY!")
+    else:
+        print(f"Search index '{index_name}' did not become READY within {timeout_minutes} minutes. Please check Atlas UI.")               
+    '''
 def load_manuals():
     
     print("starting to chunk and upload documents")

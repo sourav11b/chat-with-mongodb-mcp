@@ -12,7 +12,7 @@ from pymongo.errors import CollectionInvalid, OperationFailure
 NUM_TOWERS = 10  # Number of towers sending data, each will get its own thread
 DOCUMENTS_PER_SEND = 50  # Number of documents each tower sends per interval
 SEND_INTERVAL_SECONDS = 5
-ERRORS_PER_BATCH = 40  # Number of error documents to inject per batch (must be < DOCUMENTS_PER_SEND)
+ERRORS_PER_BATCH =  15  # Number of error documents to inject per batch (must be < DOCUMENTS_PER_SEND)
 
 import os
 from dotenv import load_dotenv
@@ -26,11 +26,12 @@ if ERRORS_PER_BATCH >= DOCUMENTS_PER_SEND:
 
 # New error messages for severity 4 and 5, adjusted to be between 10 and 50 words
 HIGH_SEVERITY_ERROR_MESSAGES = [
-    "Critical RF Module failure detected, impacting signal transmission and reception across multiple sectors, requiring immediate attention to restore full service capability."
-    # ,
-    # "Antenna VSWR reading is significantly over threshold, indicating a major impedance mismatch that could lead to power loss and potential damage to radio equipment.",
-    # "Undesirable Passive Intermodulation (PIM) has been detected, causing interference and degrading signal quality within the cell coverage area, affecting user experience.",
-    # "The antenna tilt alarm has activated, suggesting a physical misalignment of the antenna array which is severely impacting network coverage and subscriber connectivity.",
+    "Critical RF Module failure detected, impacting signal transmission and reception across multiple sectors, requiring immediate attention to restore full service capability.",
+    "Antenna VSWR reading is significantly over threshold, indicating a major impedance mismatch that could lead to power loss and potential damage to radio equipment."    ,
+    "Undesirable Passive Intermodulation (PIM) has been detected, causing interference and degrading signal quality within the cell coverage area, affecting user experience."
+    ,
+     "The antenna tilt alarm has activated, suggesting a physical misalignment of the antenna array which is severely impacting network coverage and subscriber connectivity."
+     ,
     # "RET Motor failure confirmed on an antenna, preventing remote electrical tilt adjustments and causing suboptimal signal coverage until manual repair is performed.",
     # "An antenna element failure has occurred, leading to reduced gain and directional control, severely impairing the cell's ability to provide robust wireless service.",
     # "Significant feeder cable damage detected, resulting in substantial signal attenuation and power leakage, which necessitates urgent replacement to maintain network integrity.",
@@ -241,10 +242,22 @@ def main():
         threads.append(thread)
         thread.start()
 
+    # Set the program to run for 30 mins (1800 seconds)
+    # so that the program doesnot accidnetally 
+    run_duration_seconds = 1800
+    start_time = time.time()
+
     try:
-        # Keep main thread alive while producer threads are running
-        while any(thread.is_alive() for thread in threads):
+        while time.time() - start_time < run_duration_seconds:
+            if not any(thread.is_alive() for thread in threads):
+                break # All threads finished before the timer
             time.sleep(1)
+        
+        # If the loop finishes due to the timer, signal shutdown
+        if time.time() - start_time >= run_duration_seconds:
+            print("\n1 hour has passed. Signaling threads to shut down...")
+            shutdown_event.set()
+
     except KeyboardInterrupt:
         print("\nKeyboardInterrupt detected. Signaling threads to shut down...")
         shutdown_event.set()

@@ -10,6 +10,14 @@ ATLAS_COLLECTION_NAME = "realtime_network_logs"
 ATLAS_COLLECTION_NAME_MANUALS = 'manuals_collection'
 ```
 
+if using Atlas API key for cluster ooperations
+
+```
+ATLAS_API_CLIENT_ID = ""
+ATLAS_API_CLIENT_SECRET = ""
+ATLAS_API_CLUSTER_NAME = ""
+```
+
 if using OpenAI LLMs add this
 
 ```
@@ -45,13 +53,14 @@ python send_data_to_ts.py
 For OpenAI LLMs
 
 ```
-python mcp_client_langchain_only.py
+python openai_mcp_client_langchain_mongodb_url.py
+
 ```
 
 For Azure OpenAI LLMs
 
 ```
-python azure_mcp_client_langchain_only.py
+python azure_mcp_client_langchain_mongodb_url.py
 ```
 
 

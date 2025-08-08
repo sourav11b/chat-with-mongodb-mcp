@@ -1,10 +1,12 @@
-# dependency
+# dependency - tested with following software
 
 ```
-(mongo-mcp-chat) ubuntu@ip-172-31-11-247:~/chat-with-mongodb-mcp$ python --version
+python --version
 Python 3.12.3
-(mongo-mcp-chat) ubuntu@ip-172-31-11-247:~/chat-with-mongodb-mcp$ node -v
+ node -v
 v18.19.1
+ npm -v
+9.2.0
 ```
 
 # chat-with-mongodb-mcp

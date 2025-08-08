@@ -3,10 +3,10 @@
 ```
 python --version
 Python 3.12.3
- node -v
-v18.19.1
- npm -v
-9.2.0
+node -v
+v22.18.0
+npm -v
+10.9.3
 ```
 
 # chat-with-mongodb-mcp

@@ -10,3 +10,4 @@ langchain_voyageai
 unstructured 
 python-docx 
 tiktoken
+mcp

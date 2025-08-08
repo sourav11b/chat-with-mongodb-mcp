@@ -1,3 +1,12 @@
+# dependency
+
+```
+(mongo-mcp-chat) ubuntu@ip-172-31-11-247:~/chat-with-mongodb-mcp$ python --version
+Python 3.12.3
+(mongo-mcp-chat) ubuntu@ip-172-31-11-247:~/chat-with-mongodb-mcp$ node -v
+v18.19.1
+```
+
 # chat-with-mongodb-mcp
 create a .env file and populate the keys
 

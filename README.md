@@ -86,7 +86,7 @@ ERRORS_PER_BATCH = 40  # Number of error documents to inject per batch (must be 
 # Tools 
 
 ```
-Query: what are the tool avaibale to me?
+Query: what are the tool available to me?
 
 You have access to a variety of tools that allow you to interact with MongoDB databases and collections. Here are the main categories of tools available to you:
 

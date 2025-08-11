@@ -457,7 +457,7 @@ async def chat_loop():
                 
                 if query.lower() == 'quit':
                     break
-                query = query + f" -- always use cluster {ATLAS_API_CLUSTER_NAME}"
+                # query = query + f" -- always use cluster {ATLAS_API_CLUSTER_NAME}"
                 # Add the user's message to the chat history.
                 chat_history_manager.add_user_message(query)
 

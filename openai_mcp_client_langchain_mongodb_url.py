@@ -107,7 +107,7 @@ def vector_search_tool(user_input: str) -> str:
 
     array_of_results = []
     for doc in results:
-        print("adding doc")
+        
         array_of_results.append(doc)
 
     # Convert the list of dictionaries (MongoDB documents) to a JSON formatted string

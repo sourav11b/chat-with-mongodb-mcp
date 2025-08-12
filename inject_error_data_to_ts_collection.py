@@ -12,7 +12,7 @@ from pymongo.errors import CollectionInvalid, OperationFailure
 NUM_TOWERS = 10  # Number of towers sending data, each will get its own thread
 DOCUMENTS_PER_SEND = 10  # Number of documents each tower sends per interval
 SEND_INTERVAL_SECONDS = 5
-ERRORS_PER_BATCH =  10  # Number of error documents to inject per batch (must be < DOCUMENTS_PER_SEND)
+ERRORS_PER_BATCH =  9  # Number of error documents to inject per batch (must be < DOCUMENTS_PER_SEND)
 
 import os
 from dotenv import load_dotenv
@@ -26,19 +26,24 @@ if ERRORS_PER_BATCH >= DOCUMENTS_PER_SEND:
 
 # New error messages for severity 4 and 5, adjusted to be between 10 and 50 words
 HIGH_SEVERITY_ERROR_MESSAGES = [
+    '''
     "Critical RF Module failure detected, impacting signal transmission and reception across multiple sectors, requiring immediate attention to restore full service capability.",
     "Antenna VSWR reading is significantly over threshold, indicating a major impedance mismatch that could lead to power loss and potential damage to radio equipment."    ,
     "Undesirable Passive Intermodulation (PIM) has been detected, causing interference and degrading signal quality within the cell coverage area, affecting user experience."
     ,
      "The antenna tilt alarm has activated, suggesting a physical misalignment of the antenna array which is severely impacting network coverage and subscriber connectivity."
      ,
-    # "RET Motor failure confirmed on an antenna, preventing remote electrical tilt adjustments and causing suboptimal signal coverage until manual repair is performed.",
+    '''
+     "RET Motor failure confirmed on an antenna, preventing remote electrical tilt adjustments and causing suboptimal signal coverage until manual repair is performed."
+     #,
     # "An antenna element failure has occurred, leading to reduced gain and directional control, severely impairing the cell's ability to provide robust wireless service.",
     # "Significant feeder cable damage detected, resulting in substantial signal attenuation and power leakage, which necessitates urgent replacement to maintain network integrity.",
     # "Weak 5G signal observed with critically low RSRP and SINR values, indicating poor reception conditions that are severely impacting high-speed data services for users.",
     # "Abnormally high electromagnetic field levels detected around the tower, possibly exceeding safety guidelines and warranting immediate investigation and mitigation actions.",
     # "Complete mains power failure at the tower site, forcing a switch to backup systems; sustained operation depends on the generator or battery capacity remaining.",
-    # "Emergency Power System is now active due to grid power loss, indicating the tower is running on backup batteries or a generator, with limited operational duration remaining.",
+    
+    "Emergency Power System is now active due to grid power loss, indicating the tower is running on backup batteries or a generator, with limited operational duration remaining."
+    #,
     # "The backup generator failed to start automatically during a power outage, leaving the tower solely reliant on battery power and risking full service interruption soon.",
     # "Generator run time has exceeded its maximum continuous operational limit, suggesting a prolonged power outage or a malfunction in the primary power restoration system.",
     # "Generator fuel level is critically low, prompting an urgent refueling requirement to ensure continued operation of the tower during extended mains power interruptions.",

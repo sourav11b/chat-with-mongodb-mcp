@@ -12,7 +12,7 @@ from pymongo.errors import CollectionInvalid, OperationFailure
 NUM_TOWERS = 10  # Number of towers sending data, each will get its own thread
 DOCUMENTS_PER_SEND = 50  # Number of documents each tower sends per interval
 SEND_INTERVAL_SECONDS = 5
-ERRORS_PER_BATCH =  15  # Number of error documents to inject per batch (must be < DOCUMENTS_PER_SEND)
+ERRORS_PER_BATCH =  0  # Number of error documents to inject per batch (must be < DOCUMENTS_PER_SEND)
 
 import os
 from dotenv import load_dotenv

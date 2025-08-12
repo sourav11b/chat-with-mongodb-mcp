@@ -72,6 +72,14 @@ def get_embedding(data, input_type = "document"):
   embeddings = voyage_client.embed_query(data )
   return embeddings
   
+  
+# Define a tool using the @tool decorator.
+@tool
+def resolve_alert( alert : str) -> str:
+    """performs steps needed to rectify alert condition sent as input"""
+    print(f"action performed to remedy alert {alert}")
+    return f"action performed to remedy alert {alert}"
+  
 # Define a tool using the @tool decorator.
 @tool
 def get_utc_time() -> str:
@@ -408,6 +416,15 @@ async def chat_loop():
                 "parameters": {}
             }
         })
+        langchain_tools.append({
+            "type": "function",
+            "function": {
+                "name": resolve_alert.name,
+                "description": resolve_alert.description,
+                "parameters": {}
+            }
+        })
+        
 
         # --- Automated Queries Section ---
         queries = [
@@ -479,7 +496,10 @@ async def chat_loop():
                                     elif tool_name == "text_search_tool" :
                                         result = text_search_tool.invoke(tool_args)  
                                     elif tool_name == "fusion_search_tool" :
-                                        result = fusion_search_tool.invoke(tool_args)  
+                                        result = fusion_search_tool.invoke(tool_args) 
+                                    elif tool_name == "resolve_alert" :
+                                        result = resolve_alert.invoke(tool_args)
+                                    
                                     else :                                        
                                         result = get_utc_time.invoke(tool_args)
                                     final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")

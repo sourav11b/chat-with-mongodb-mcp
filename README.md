@@ -117,7 +117,12 @@ ERRORS_PER_BATCH = 40  # Number of error documents to inject per batch (must be 
 # sample prompt
 
 ```
- Please access the realtime_network_logs table in the network monitoring database and, after identifying the correct UTC timestamp field by examining its schema, retrieve event descriptions inserted within the last 20 seconds; then, summarize these descriptions, pinpointing any alert conditions where the severity is 4 or greater, and finally, leverage vector search tools to find and present possible solutions for all identified alerts.identify the towers impacted
+ Please access the realtime_network_logs table in the network monitoring database and,
+ after identifying the correct UTC timestamp field by examining its schema,
+retrieve event descriptions inserted within the last 20 seconds; then,
+summarize these descriptions, pinpointing any alert conditions where the severity is 4 or greater,
+and finally, leverage vector search tools to find
+and present possible solutions for all identified alerts.identify the towers impacted
 ```
 
 # sample output

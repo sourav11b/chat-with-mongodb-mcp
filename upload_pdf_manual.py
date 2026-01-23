@@ -7,11 +7,9 @@ from pymongo.mongo_client import MongoClient
 from pymongo.operations import SearchIndexModel
 
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-
-from langchain.vectorstores import MongoDBAtlasVectorSearch
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_voyageai import VoyageAIEmbeddings
-
+from langchain_community.vectorstores import MongoDBAtlasVectorSearch
 
 load_dotenv()
 
@@ -67,10 +65,10 @@ def create_vector_index_definition():
       if len(indices) and predicate(indices[0]):
         break
       time.sleep(5)
-    print(result + " is ready for querying.")    
-    
+    print(result + " is ready for querying.")
+
 def load_manuals():
-    
+
     print("starting to chunk and upload documents")
     loader = PyPDFLoader("content/manual.pdf")
     data = loader.load()
@@ -81,10 +79,10 @@ def load_manuals():
     x = MongoDBAtlasVectorSearch.from_documents(
          documents=docs, embedding=VoyageAIEmbeddings( model="voyage-3-lite"), collection=collection, index_name=ATLAS_VECTOR_SEARCH_INDEX_NAME
     )
-     
+
     print("documents ready to query")
-     
-     
+
+
 def main():
     print("---STARTING PROCESS---")
     create_vector_index_definition()

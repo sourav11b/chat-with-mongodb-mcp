@@ -61,17 +61,10 @@ python send_data_to_ts.py
 
 # start chat bot with memory and MCP tools 
 
-For OpenAI LLMs
-
-```
-python openai_mcp_client_langchain_mongodb_url.py
-
-```
-
 For Azure OpenAI LLMs
 
 ```
-python azure_mcp_client_langchain_mongodb_url.py
+streamlit run streamlit_app
 ```
 
 

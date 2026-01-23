@@ -33,7 +33,29 @@ from dotenv import load_dotenv
 # mcp (MongoDB Command Protocol): Libraries for interacting with the MongoDB Command Server.
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.shared.context import RequestContext
 
+import asyncio
+import signal
+import traceback
+import sys
+import threading
+
+def dump_stacks(sig, frame):
+    all_tasks = asyncio.all_tasks()
+    current_task = asyncio.current_task()
+    print("----- Python Stack Dump -----")
+    print("Dumping all thread stacks:")
+    for thread_id, stack in sys._current_frames().items():
+        print(f"\nThread {thread_id}:")
+        traceback.print_stack(stack, file=sys.stdout)
+    
+    print("\nDumping all asyncio task stacks:")
+    for task in all_tasks:
+        print(f"\nTask: {task!r} (Running: {task is current_task})")
+        task.print_stack(file=sys.stdout)
+    
+    print("----------------------------")
 
 # Load environment variables from a .env file.
 # This makes it easy to manage sensitive information like API keys and connection strings.
@@ -70,8 +92,7 @@ collection = mongo_client[ATLAS_DB_NAME][ATLAS_COLLECTION_NAME_MANUALS]
 # --- Session Management ---
 # Generate a new, unique session_id using UUID for chat history.
 # This ensures each conversation is stored separately in the chat history collection.
-session_id = str(uuid.uuid4())
-print(f"Generated new chat session_id: {session_id}")
+
 
 # --- Voyage AI Client Initialization ---
 # Initialize the VoyageAIEmbeddings client with a specific model.
@@ -308,266 +329,264 @@ def to_openai_api_messages(lc_messages):
             return oai_messages
 
 # The main asynchronous function that runs the chat loop.
-async def chat_loop():
-    """Run an interactive chat loop"""
-    print("\nMCP Client Started!")
-    print("""
-    Type your queries or 'quit' to exit. 
-    
-    To do a vector search against manuals please use keywords vector or sematic search
-    To do a text search against manuals please use keywords text search
-    To do a fusion search  against manuals please use keywords fusion search
-    
-    Example prompt :   Please access the realtime_network logs collection in the network monitoring database and, after identifying the correct UTC timestamp field by examining its schema, retrieve all event descriptions inserted within the last 20 seconds; then, summarize these descriptions, pinpointing any alert conditions where the severity is 4 or greater, and finally,if alerts were founds, leverage vector search tools to find and present possible solutions for all identified alerts.add an entry to a findings collections with identified alerts and resultions. 
-    
-    """)
-    
-    # Initialize LangChain's AzureChatOpenAI with the loaded configuration.
-    llm = AzureChatOpenAI(
+
+
+llm = AzureChatOpenAI(
         openai_api_version=AZURE_OPENAI_API_VERSION,
         azure_deployment=AZURE_OPENAI_DEPLOYMENT_NAME,
         azure_endpoint=AZURE_OPENAI_ENDPOINT,
         api_key=AZURE_OPENAI_API_KEY,
         temperature=0
     )
-
-
-    # Use AsyncExitStack for proper cleanup of asynchronous contexts.
-    async with AsyncExitStack() as current_exit_stack:
-        # Define the parameters for the MongoDB Command Protocol (MCP) server.
-        
-        '''
-        server_params = StdioServerParameters(
+    
+server_params = StdioServerParameters(
             command="npx",
             args=[ "-y",
-            "mongodb-mcp-server",
-            "--connectionString",
-            ATLAS_URI],
-            env=None
+            "mongodb-mcp-server@latest"],
+            env={
+                "MDB_MCP_CONNECTION_STRING": ATLAS_URI
+            }
         )
-        '''
-        server_params = StdioServerParameters(
-            command="npx",
-            args=[ "-y",
-            "mongodb-mcp-server",
-            "--apiClientId",
-            ATLAS_API_CLIENT_ID,
-            "--apiClientSecret",
-            ATLAS_API_CLIENT_SECRET
-            ]
-        )
+async def chat_loop( query):
+
+    response_array = []
+    # Initialize LangChain's AzureChatOpenAI with the loaded configuration.
+           
         
-        
-        
-        
-        
+    exit_stack = AsyncExitStack()
+                   
+
+    stdio_transport = await exit_stack.enter_async_context(stdio_client(server_params))
+    stdio, write = stdio_transport
+    session = await exit_stack.enter_async_context(ClientSession(stdio, write))
 
 
-        # Connect to the MCP server.
-        stdio_transport = await current_exit_stack.enter_async_context(stdio_client(server_params))
-        stdio, write = stdio_transport
+    await session.initialize()
 
-        # Start a client session with the MCP server.
-        session = await current_exit_stack.enter_async_context(ClientSession(stdio, write))
-        await session.initialize()
+    # Initialize MongoDBChatMessageHistory ONCE here, before the while loop!
+    # This will store the chat history in a MongoDB collection.
+    session_id = str(uuid.uuid4())
+    print(f"Generated new chat session_id: {session_id}")
+    chat_history_manager = MongoDBChatMessageHistory(
+        connection_string=ATLAS_URI,
+        session_id=session_id, # Use the newly generated session_id
+        database_name="historical_db",
+        collection_name="chat_messages",
+        history_size = 10
+    )
 
-        # Initialize MongoDBChatMessageHistory ONCE here, before the while loop!
-        # This will store the chat history in a MongoDB collection.
-        chat_history_manager = MongoDBChatMessageHistory(
-            connection_string=ATLAS_URI,
-            session_id=session_id, # Use the newly generated session_id
-            database_name="historical_db",
-            collection_name="chat_messages"
-        )
-
-        # Get the list of tools from the MCP server.
-        response = await session.list_tools()
-        langchain_tools = []
-        # Convert the MCP tools into a format that LangChain and Azure OpenAI can use.
-        for tool in response.tools:
-            langchain_tools.append({
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "parameters": tool.inputSchema
-                }
-            })
-                    
-        # Manually add the custom-defined tools (vector, text, fusion, and get_utc_time)
-        # to the list of tools the model can use.
+    # Get the list of tools from the MCP server.
+    response = await session.list_tools()
+    langchain_tools = []
+    # Convert the MCP tools into a format that LangChain and Azure OpenAI can use.
+    for tool in response.tools:
         langchain_tools.append({
             "type": "function",
             "function": {
-                "name": vector_search_tool.name,
-                "description": vector_search_tool.description,
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "user_input": {"type": "string", "description": "The name alert conditions"}
-                    },
-                    "required": ["user_input"]
-                }
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.inputSchema
             }
         })
-                    
-        langchain_tools.append({
-            "type": "function",
-            "function": {
-                "name": text_search_tool.name,
-                "description": text_search_tool.description,
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "user_input": {"type": "string", "description": "The name alert conditions"}
-                    },
-                    "required": ["user_input"]
-                }
-            }
-        })
-                    
-        langchain_tools.append({
-            "type": "function",
-            "function": {
-                "name": fusion_search_tool.name,
-                "description": fusion_search_tool.description,
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "user_input": {"type": "string", "description": "The name alert conditions"}
-                    },
-                    "required": ["user_input"]
-                }
-            }
-        })
-        langchain_tools.append({
-            "type": "function",
-            "function": {
-                "name": get_utc_time.name,
-                "description": get_utc_time.description,
-                "parameters": {}
-            }
-        })
-
-        # Start the main chat loop.
-        while True:
-            try:
-                # Get user input from the command line.
-                query = input("\nQuery: ").strip()
                 
-                if query.lower() == 'quit':
-                    break
-                query = query + f" -- always use cluster {ATLAS_API_CLUSTER_NAME}"
-                # Add the user's message to the chat history.
-                chat_history_manager.add_user_message(query)
+    # Manually add the custom-defined tools (vector, text, fusion, and get_utc_time)
+    # to the list of tools the model can use.
+    langchain_tools.append({
+        "type": "function",
+        "function": {
+            "name": vector_search_tool.name,
+            "description": vector_search_tool.description,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "user_input": {"type": "string", "description": "The name alert conditions"}
+                },
+                "required": ["user_input"]
+            }
+        }
+    })
+                
+    langchain_tools.append({
+        "type": "function",
+        "function": {
+            "name": text_search_tool.name,
+            "description": text_search_tool.description,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "user_input": {"type": "string", "description": "The name alert conditions"}
+                },
+                "required": ["user_input"]
+            }
+        }
+    })
+                
+    langchain_tools.append({
+        "type": "function",
+        "function": {
+            "name": fusion_search_tool.name,
+            "description": fusion_search_tool.description,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "user_input": {"type": "string", "description": "The name alert conditions"}
+                },
+                "required": ["user_input"]
+            }
+        }
+    })
+    langchain_tools.append({
+        "type": "function",
+        "function": {
+            "name": get_utc_time.name,
+            "description": get_utc_time.description,
+            "parameters": {}
+        }
+    })
 
-                # A flag to control the loop for multi-step tool calls.
-                should_call_llm_again = True
-                final_text = []
 
-                # This inner loop handles multi-turn conversations and tool calls.
-                while should_call_llm_again:
-                    should_call_llm_again = False # Assume no more tool calls unless found
+    try:
 
-                    # Retrieve the entire message history.
-                    messages = chat_history_manager.messages
+        
+
+        # query = query + f" -- always use cluster {ATLAS_API_CLUSTER_NAME}"
+        # Add the user's message to the chat history.
+        chat_history_manager.add_user_message(query)
+
+        # A flag to control the loop for multi-step tool calls.
+        should_call_llm_again = True
+        final_text = []
+
+        # This inner loop handles multi-turn conversations and tool calls.
+        while should_call_llm_again:
+            print ("inside should_call_llm_again")
+            should_call_llm_again = False # Assume no more tool calls unless found
+
+            # Retrieve the entire message history.
+            messages = chat_history_manager.messages
+            
+            # Invoke the LLM with the message history and the available tools.
+            llm_response = await llm.ainvoke(
+                input=messages, # Pass the list of LangChain messages directly
+                tools=langchain_tools,
+                tool_choice="auto" # Let the model decide which tool to use, if any.
+            )
+
+            # Get the AI's response message object.
+            response_message = llm_response 
+            
+            # Get the content and any tool calls from the AI's response.
+            ai_message_content = response_message.content
+            ai_tool_calls = response_message.tool_calls 
+            
+            if ai_tool_calls:
+                should_call_llm_again = True # If tools are called, loop again after execution.
+
+            if response_message.content:
+                # Append any text content from the AI's response.
+                final_text.append(response_message.content)
+            
+            # Handle tool calls if they exist in the AI's response.
+            if response_message.tool_calls:
+                
+                for tool_call in response_message.tool_calls:
+                    tool_name = tool_call["name"] 
+                    tool_args = tool_call["args"] 
+                    # Check if the tool is one of the manually defined ones.
+                    if tool_name not in ["vector_search_tool","get_utc_time","text_search_tool","fusion_search_tool"]: 
+                        try:
+                            # Execute tool calls for tools from the MCP server.
+                            result = await session.call_tool(tool_name, tool_args) 
+                            final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
+                            tool_output_content = str(result.content)
+                        except Exception as tool_e:
+                            tool_output_content = f"Error executing tool {tool_name}: {str(tool_e)}"
+                            #print(f"\n{tool_output_content}")
+                            response_array.append(f"\n{tool_output_content}")
+                    else :
+                        # Execute the custom Python-based tools.
+                        try: 
+                            if tool_name == "vector_search_tool" :
+                                result = vector_search_tool.invoke(tool_args)  
+                            elif tool_name == "text_search_tool" :
+                                result = text_search_tool.invoke(tool_args)  
+                            elif tool_name == "fusion_search_tool" :
+                                result = fusion_search_tool.invoke(tool_args)  
+                            else :                                        
+                                result = get_utc_time.invoke(tool_args)
+                            final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
+                            tool_output_content = str(result) 
+                        except Exception as tool_e:
+                            tool_output_content = f"Error executing tool {tool_name}: {str(tool_e)}"
+                            #print(f"\n{tool_output_content}")
+                            response_array.append(f"\n{tool_output_content}")
                     
-                    # Invoke the LLM with the message history and the available tools.
-                    llm_response = await llm.ainvoke(
-                        input=messages, # Pass the list of LangChain messages directly
-                        tools=langchain_tools,
-                        tool_choice="auto" # Let the model decide which tool to use, if any.
+                    # Add the AI message with the tool call to the history.
+                    ai_tool_calls = []
+                    ai_tool_calls.append(
+                        ToolCall(id=tool_call["id"], name=tool_call["name"], args=tool_call["args"])
                     )
-
-                    # Get the AI's response message object.
-                    response_message = llm_response 
                     
-                    # Get the content and any tool calls from the AI's response.
-                    ai_message_content = response_message.content
-                    ai_tool_calls = response_message.tool_calls 
-                    
-                    if ai_tool_calls:
-                        should_call_llm_again = True # If tools are called, loop again after execution.
-
-                    if response_message.content:
-                        # Append any text content from the AI's response.
-                        final_text.append(response_message.content)
-                    
-                    # Handle tool calls if they exist in the AI's response.
-                    if response_message.tool_calls:
+                    chat_history_manager.add_ai_message( 
+                        AIMessage(content=ai_message_content if ai_message_content is not None else "", tool_calls=ai_tool_calls)
+                    )
                         
-                        for tool_call in response_message.tool_calls:
-                            tool_name = tool_call["name"] 
-                            tool_args = tool_call["args"] 
-                            # Check if the tool is one of the manually defined ones.
-                            if tool_name not in ["vector_search_tool","get_utc_time","text_search_tool","fusion_search_tool"]: 
-                                try:
-                                    # Execute tool calls for tools from the MCP server.
-                                    result = await session.call_tool(tool_name, tool_args) 
-                                    final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
-                                    tool_output_content = str(result.content)
-                                except Exception as tool_e:
-                                    tool_output_content = f"Error executing tool {tool_name}: {str(tool_e)}"
-                                    print(f"\n{tool_output_content}")
-                            else :
-                                # Execute the custom Python-based tools.
-                                try: 
-                                    if tool_name == "vector_search_tool" :
-                                        result = vector_search_tool.invoke(tool_args)  
-                                    elif tool_name == "text_search_tool" :
-                                        result = text_search_tool.invoke(tool_args)  
-                                    elif tool_name == "fusion_search_tool" :
-                                        result = fusion_search_tool.invoke(tool_args)  
-                                    else :                                        
-                                        result = get_utc_time.invoke(tool_args)
-                                    final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
-                                    tool_output_content = str(result) 
-                                except Exception as tool_e:
-                                    tool_output_content = f"Error executing tool {tool_name}: {str(tool_e)}"
-                                    print(f"\n{tool_output_content}")
-                            
-                            # Add the AI message with the tool call to the history.
-                            ai_tool_calls = []
-                            ai_tool_calls.append(
-                                ToolCall(id=tool_call["id"], name=tool_call["name"], args=tool_call["args"])
-                            )
-                            
-                            chat_history_manager.add_ai_message( 
-                                AIMessage(content=ai_message_content if ai_message_content is not None else "", tool_calls=ai_tool_calls)
-                            )
-                                
-                            # Add the result of the tool execution as a ToolMessage to the history.
-                            chat_history_manager.add_message( 
-                                ToolMessage(
-                                    content=tool_output_content,
-                                    tool_call_id=tool_call["id"],
-                                )
-                            )
-                    else:
-                        # If no tool calls, add the AI's content-only message and exit the inner loop.
-                        chat_history_manager.add_ai_message(
-                            AIMessage(content=ai_message_content if ai_message_content is not None else "")
+                    # Add the result of the tool execution as a ToolMessage to the history.
+                    chat_history_manager.add_message( 
+                        ToolMessage(
+                            content=tool_output_content,
+                            tool_call_id=tool_call["id"],
                         )
-                        should_call_llm_again = False
-                    
-                # Join all the parts of the final response and print it.
-                response_output = "\n".join(final_text)
-                print("\n" + response_output)
+                    )
+            else:
+                # If no tool calls, add the AI's content-only message and exit the inner loop.
+                chat_history_manager.add_ai_message(
+                    AIMessage(content=ai_message_content if ai_message_content is not None else "")
+                )
+                should_call_llm_again = False
+            print (f"result  should_call_llm_again - {should_call_llm_again}")
+            print(response_array)
+        print("exited while")
+        # Join all the parts of the final response and print it.
+        response_output = "\n".join(final_text)
+        print(response_output)
+        
+        response_array.append("\n" + response_output)
 
-            except Exception as e:
-                # Basic error handling to catch and print exceptions.
-                print(f"\nError: {str(e)}")
-                exc_type, exc_obj, exc_tb = sys.exc_info()
-                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                print(f"Error in {fname} at line {exc_tb.tb_lineno}")
-                # Continue the loop even if an error occurs, allowing the user to type 'quit'
-                # or try another query.
-
+    except Exception as e:
+        # Basic error handling to catch and print exceptions.
+        print(f"\nError: {str(e)}")
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print(f"Error in {fname} at line {exc_tb.tb_lineno}")
+            # Continue the loop even if an error occurs, allowing the user to type 'quit'
+            # or try another query.
+    print ("exiting try")
+    print("returning")
+    
+    try:
+        await exit_stack.aclose()
+        print("Exit stack closed successfully.")
+    except Exception as e:
+        print(f"An error occurred during exit stack closing: {e}")
+    
+    return response_array
 # The entry point of the script.
+
+
+class CustomError(Exception):
+    """A custom exception for specific error conditions."""
+    pass
 async def main():
     """Entry point for the client script."""
-    await chat_loop()
-
+    query = "Access the real time realtime network logs collection in the network monitoring database.Identify the correct UTC timestamp field by examining the collection's schema.Retrieve all event descriptions inserted within the last 30 seconds.Summarize these descriptions and identify any alert conditions with a severity of 4 or greater.If alerts are found: Look for past findings on similar alerts If new alerts, use vector search tools to find and present possible solutions for all identified alerts.Add an entry to a findings collection that includes the identified alerts and their corresponding resolutions.Print the ID of the records in the findings collection that correspond to these alerts.Execute full flow on each prompt"
+    response = await chat_loop(query)
+    print("got response")
+    print(response)
+#signal.signal(signal.SIGINT, dump_stacks)
 if __name__ == "__main__":
     # Run the main asynchronous function.
-    asyncio.run(main())
+    
+
+    asyncio.run(main(), debug=True)
+

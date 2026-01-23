@@ -11,3 +11,7 @@ unstructured
 python-docx 
 tiktoken
 mcp
+streamlit 
+duckduckgo-search
+nest_asyncio
+

@@ -1,63 +1,64 @@
-# dependency - tested with following software
+# dependency - tested with following software on Ubuntu
 
 ```
-python --version
+(demo) ubuntu@ip-:~$ lsb_release -a
+No LSB modules are available.
+Distributor ID: Ubuntu
+Description:    Ubuntu 24.04.3 LTS
+Release:        24.04
+Codename:       noble
+
+
+(demo) ubuntu@ip-:~$ python --version
 Python 3.12.3
-node -v
-v22.18.0
-npm -v
-10.9.3
+(demo) ubuntu@ip-:~$ node -v
+v24.12.0
+(demo) ubuntu@ip-:~$ npm -v
+11.6.2
 ```
 
 # chat-with-mongodb-mcp
 create a .env file and populate the keys
 
+create Azure OpenAI Key
+
+create Atlas Cluster
+
 ```
-VOYAGE_API_KEY =""
+VOYAGE_API_KEY = ""
 ATLAS_VECTOR_SEARCH_INDEX_NAME = "vector_index_embedding"
 ATLAS_URI = ""  
 ATLAS_DB_NAME = "network_monitoring"
 ATLAS_COLLECTION_NAME = "realtime_network_logs"
-ATLAS_COLLECTION_NAME_MANUALS = 'manuals_collection'
-```
-
-if using Atlas API key for cluster ooperations
-
-```
+ATLAS_COLLECTION_NAME_MANUALS = "manuals_collection"
+ATLAS_HISTORY_DB_NAME = "webapp_history_db"
+ATLAS_HISTORY_COLLECTION_NAME = "webapp_history_coll"
 ATLAS_API_CLIENT_ID = ""
 ATLAS_API_CLIENT_SECRET = ""
-ATLAS_API_CLUSTER_NAME = ""
-```
+ATLAS_API_CLUSTER_NAME = "test-asp"
 
-if using OpenAI LLMs add this
-
-```
-OPENAI_API_KEY = ""
-```
-
-if using Azure OpenAI LLMs add these 
-
-```
 AZURE_OPENAI_API_KEY = ""
-AZURE_OPENAI_ENDPOINT =  ""
-AZURE_OPENAI_API_VERSION = ""
+AZURE_OPENAI_ENDPOINT = ""
+AZURE_OPENAI_API_VERSION = "2024-12-01-preview"
 AZURE_OPENAI_DEPLOYMENT_NAME = ""
+```
+
+Install Requirements
+
 ```
 
 1. python -m venv mongo-mcp-chat
 1. mongo-mcp-chat\Scripts\activate.bat ( this for Windows, change for other OS source mongo-mcp-chat/bin/activate)
 1. pip install -r requirements.txt
+```
 
 # chunk, create embeddings and upload pdf manual
 
 ```
-python upload_manual.py
-```
-# start sending time series network logs
+python upload_pdf_manual.py
 
 ```
-python send_data_to_ts.py
-```
+
 
 # start chat bot with memory and MCP tools 
 
@@ -79,10 +80,6 @@ ERRORS_PER_BATCH = 40  # Number of error documents to inject per batch (must be 
 # Tools 
 
 ```
-Query: what are the tool available to me?
-
-You have access to a variety of tools that allow you to interact with MongoDB databases and collections. Here are the main categories of tools available to you:
-
 1. Database Management:
    - List all databases
    - Get database statistics

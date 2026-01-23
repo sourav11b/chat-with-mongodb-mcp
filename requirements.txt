@@ -7,11 +7,11 @@ voyageai
 langchain_community
 pypdf
 langchain_voyageai
-unstructured 
-python-docx 
+unstructured
+python-docx
 tiktoken
 mcp
-streamlit 
+streamlit
 duckduckgo-search
 nest_asyncio
-
+langchain-text-splitters
